@@ -13,22 +13,17 @@ const minecraftClients = new Map();
 wss.on('connection', (ws, req) => {
     const params = new URLSearchParams(req.url.replace('/?', ''));
     const licenseKey = params.get('key');
-
     if (!licenseKey) { ws.close(); return; }
-
-    console.log(`[Relay] Plugin connecté avec clé : ${licenseKey}`);
+    console.log(`[Relay] Plugin connecté : ${licenseKey}`);
     minecraftClients.set(licenseKey, ws);
-
     ws.on('close', () => {
         console.log(`[Relay] Plugin déconnecté : ${licenseKey}`);
         minecraftClients.delete(licenseKey);
     });
 });
 
-// Launcher envoie un event → on broadcast à TOUS les plugins connectés
 app.post('/event', (req, res) => {
     const eventData = req.body;
-
     let sent = 0;
     minecraftClients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
@@ -36,7 +31,6 @@ app.post('/event', (req, res) => {
             sent++;
         }
     });
-
     console.log(`[Relay] Event ${eventData.event} envoyé à ${sent} plugins`);
     res.json({ success: true, sent });
 });
