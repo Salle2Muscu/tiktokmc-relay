@@ -8,10 +8,8 @@ app.use(express.json());
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Stocke les connexions Minecraft par clé de licence
-const minecraftClients = new Map(); // licenseKey → WebSocket
+const minecraftClients = new Map();
 
-// ── Plugin Minecraft se connecte ──
 wss.on('connection', (ws, req) => {
     const params = new URLSearchParams(req.url.replace('/?', ''));
     const licenseKey = params.get('key');
@@ -27,31 +25,24 @@ wss.on('connection', (ws, req) => {
     });
 });
 
-// ── Launcher envoie un event ──
+// Launcher envoie un event → on broadcast à TOUS les plugins connectés
 app.post('/event', (req, res) => {
-    const { license_key, ...eventData } = req.body;
+    const eventData = req.body;
 
-    if (!license_key) {
-        return res.status(400).json({ error: 'license_key manquant' });
-    }
+    let sent = 0;
+    minecraftClients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(eventData));
+            sent++;
+        }
+    });
 
-    const client = minecraftClients.get(license_key);
-
-    if (!client || client.readyState !== WebSocket.OPEN) {
-        return res.status(404).json({ error: 'Plugin Minecraft non connecté' });
-    }
-
-    client.send(JSON.stringify(eventData));
-    console.log(`[Relay] Event envoyé à ${license_key} : ${eventData.event}`);
-    res.json({ success: true });
+    console.log(`[Relay] Event ${eventData.event} envoyé à ${sent} plugins`);
+    res.json({ success: true, sent });
 });
 
-// ── Health check ──
 app.get('/', (req, res) => {
-    res.json({
-        status: 'ok',
-        connected: minecraftClients.size
-    });
+    res.json({ status: 'ok', connected: minecraftClients.size });
 });
 
 const PORT = process.env.PORT || 3000;
